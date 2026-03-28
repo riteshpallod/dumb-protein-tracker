@@ -10,6 +10,8 @@ export type UserSettings = {
   protein_goal: number;
   onboarding_complete: number;
   avatar_uri: string | null;
+  age: number | null;
+  sex: 'male' | 'female' | null;
 };
 
 export type FoodItem = {

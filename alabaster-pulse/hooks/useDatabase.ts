@@ -20,6 +20,8 @@ export function useDatabase() {
       // Migrations
       await database.execAsync(`ALTER TABLE user_settings ADD COLUMN avatar_uri TEXT`).catch(() => {});
       await database.execAsync(`ALTER TABLE food_items ADD COLUMN fat_grams REAL DEFAULT 0`).catch(() => {});
+      await database.execAsync(`ALTER TABLE user_settings ADD COLUMN age INTEGER`).catch(() => {});
+      await database.execAsync(`ALTER TABLE user_settings ADD COLUMN sex TEXT`).catch(() => {});
       dbInstance = database;
       setDb(database);
       setReady(true);

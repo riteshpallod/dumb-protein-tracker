@@ -69,7 +69,7 @@ export default function InsightsScreen() {
     : 0;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Insights</Text>
 
@@ -184,6 +184,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.xl,
+    paddingBottom: 100,
   },
   title: {
     ...Typography.titleLarge,

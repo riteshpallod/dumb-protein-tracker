@@ -12,7 +12,22 @@ import { getSettings, updateSettings } from '../../../db/queries';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radii, Spacing, Shadow, Typography } from '../../../constants/theme';
 
-/** Leaf icon for Maintenance preset. */
+/**
+ * Evidence-based protein targets per kg of body weight:
+ *   Maintain  — 1.6 g/kg (ISSN minimum for active adults)
+ *   Shred     — 2.2 g/kg (high protein to preserve muscle in deficit)
+ *   Bulk      — 1.8 g/kg (sufficient for muscle protein synthesis)
+ * Rounded to nearest 5 g.
+ */
+function calcProteinTargets(weightKg: number) {
+  const round5 = (v: number) => Math.round(v / 5) * 5;
+  return {
+    maintain: round5(weightKg * 1.6),
+    shred: round5(weightKg * 2.2),
+    bulk: round5(weightKg * 1.8),
+  };
+}
+
 function LeafIcon({ color = Colors.textMuted }: { color?: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
@@ -21,11 +36,9 @@ function LeafIcon({ color = Colors.textMuted }: { color?: string }) {
   );
 }
 
-/** Dumbbell icon for High Protein preset. */
 function DumbbellIcon({ color = Colors.textMuted }: { color?: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path d="M6.5 6.5h11v11h-11z" stroke="none" fill="none" />
       <Line x1="7" y1="12" x2="17" y2="12" stroke={color} strokeWidth={2} strokeLinecap="round" />
       <Line x1="4" y1="8" x2="4" y2="16" stroke={color} strokeWidth={2} strokeLinecap="round" />
       <Line x1="20" y1="8" x2="20" y2="16" stroke={color} strokeWidth={2} strokeLinecap="round" />
@@ -37,9 +50,11 @@ function DumbbellIcon({ color = Colors.textMuted }: { color?: string }) {
   );
 }
 
-/** Edit protein goal screen. */
+/** Edit protein goal screen with weight-based personalised estimates. */
 export default function EditProteinScreen() {
   const [value, setValue] = useState(165);
+  const [targets, setTargets] = useState({ maintain: 120, shred: 165, bulk: 140 });
+  const [hasWeight, setHasWeight] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -47,6 +62,10 @@ export default function EditProteinScreen() {
         const db = getDb();
         const s = await getSettings(db);
         setValue(s.protein_goal);
+        if (s.weight_kg) {
+          setTargets(calcProteinTargets(s.weight_kg));
+          setHasWeight(true);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -65,11 +84,16 @@ export default function EditProteinScreen() {
     }
   }
 
-  const midValue = Math.round((50 + 300) / 2);
+  const rangeText = hasWeight
+    ? `Your range: ${targets.maintain}g – ${targets.shred}g`
+    : 'Set your weight in Profile for a personalised estimate';
+
+  const bannerText = hasWeight
+    ? `Based on your weight:\n• Maintain: ${targets.maintain}g (1.6g/kg)\n• Shred: ${targets.shred}g (2.2g/kg)\n• Bulk: ${targets.bulk}g (1.8g/kg)`
+    : 'Set your weight in Profile to get personalised protein targets.';
 
   return (
-    <SafeAreaView style={styles.root}>
-      {/* Header */}
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="close" size={22} color={Colors.textPrimary} />
@@ -81,12 +105,14 @@ export default function EditProteinScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Hero */}
         <Text style={styles.heroNumber}>{value}</Text>
         <Text style={styles.heroUnit}>grams</Text>
         <Text style={styles.heroLabel}>DAILY TARGET</Text>
 
-        {/* Slider card */}
+        <View style={styles.rangePill}>
+          <Text style={styles.rangePillText}>{rangeText}</Text>
+        </View>
+
         <View style={styles.sliderCard}>
           <View style={styles.sliderTitleRow}>
             <Text style={styles.sliderTitle}>Adjust Goal</Text>
@@ -107,59 +133,52 @@ export default function EditProteinScreen() {
           />
           <View style={styles.sliderRange}>
             <Text style={styles.sliderRangeText}>50G</Text>
-            <Text style={styles.sliderRangeText}>{midValue}G</Text>
+            <Text style={styles.sliderRangeText}>175G</Text>
             <Text style={styles.sliderRangeText}>300G</Text>
           </View>
         </View>
 
-        {/* Preset cards */}
         <View style={styles.presetRow}>
           <TouchableOpacity
-            style={[styles.presetCard, value === 140 && styles.presetCardActive]}
-            onPress={() => setValue(140)}
+            style={[styles.presetCard, value === targets.maintain && styles.presetCardActive]}
+            onPress={() => setValue(targets.maintain)}
           >
-            <View style={[styles.presetIconCircle, value === 140 && styles.presetIconCircleActive]}>
-              <LeafIcon color={value === 140 ? Colors.primary : Colors.textMuted} />
+            <View style={[styles.presetIconCircle, value === targets.maintain && styles.presetIconCircleActive]}>
+              <LeafIcon color={value === targets.maintain ? Colors.primary : Colors.textMuted} />
             </View>
-            <Text style={styles.presetCardLabel}>MAINTENANCE</Text>
+            <Text style={styles.presetCardLabel}>MAINTAIN</Text>
             <View style={styles.presetValueRow}>
-              <Text style={[styles.presetCardNumber, value === 140 && styles.presetCardNumberActive]}>140</Text>
-              <Text style={[styles.presetCardUnit, value === 140 && styles.presetCardUnitActive]}> g</Text>
+              <Text style={[styles.presetCardNumber, value === targets.maintain && styles.presetCardNumberActive]}>
+                {targets.maintain}
+              </Text>
+              <Text style={[styles.presetCardUnit, value === targets.maintain && styles.presetCardUnitActive]}> g</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.presetCard, value === 185 && styles.presetCardActive]}
-            onPress={() => setValue(185)}
+            style={[styles.presetCard, value === targets.shred && styles.presetCardActive]}
+            onPress={() => setValue(targets.shred)}
           >
-            <View style={[styles.presetIconCircle, value === 185 && styles.presetIconCircleActive]}>
-              <DumbbellIcon color={value === 185 ? Colors.primary : Colors.textMuted} />
+            <View style={[styles.presetIconCircle, value === targets.shred && styles.presetIconCircleActive]}>
+              <DumbbellIcon color={value === targets.shred ? Colors.primary : Colors.textMuted} />
             </View>
-            <Text style={styles.presetCardLabel}>HIGH PROTEIN</Text>
+            <Text style={styles.presetCardLabel}>SHRED / BULK</Text>
             <View style={styles.presetValueRow}>
-              <Text style={[styles.presetCardNumber, value === 185 && styles.presetCardNumberActive]}>185</Text>
-              <Text style={[styles.presetCardUnit, value === 185 && styles.presetCardUnitActive]}> g</Text>
+              <Text style={[styles.presetCardNumber, value === targets.shred && styles.presetCardNumberActive]}>
+                {targets.shred}
+              </Text>
+              <Text style={[styles.presetCardUnit, value === targets.shred && styles.presetCardUnitActive]}> g</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Info banner */}
         <View style={styles.infoBanner}>
           <View style={styles.infoBannerIconCircle}>
             <Ionicons name="information-circle" size={16} color={Colors.primary} />
           </View>
           <View style={styles.infoBannerContent}>
-            <Text style={styles.infoBannerTitle}>Why this matters?</Text>
-            <Text style={styles.infoBannerText}>
-              A higher protein intake supports{' '}
-              <Text style={{ fontFamily: 'PlusJakartaSans_700Bold', color: Colors.primary }}>muscle synthesis</Text>
-              {' '}and metabolism. For your current weight and activity level, staying between 160g-190g ensures optimal recovery.
-            </Text>
+            <Text style={styles.infoBannerTitle}>Why this matters</Text>
+            <Text style={styles.infoBannerText}>{bannerText}</Text>
           </View>
-        </View>
-
-        {/* Bottom card */}
-        <View style={styles.bottomCard}>
-          <Text style={styles.bottomCardText}>Fuel your body with the right sources.</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -176,7 +195,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.base,
     marginBottom: Spacing.xl,
   },
-  headerClose: { ...Typography.title, color: Colors.textMuted },
   headerTitle: { ...Typography.title, color: Colors.textPrimary },
   headerSave: { ...Typography.bodyMedium, color: Colors.primary },
   scroll: { paddingHorizontal: Spacing.base, paddingBottom: 40, alignItems: 'center' },
@@ -186,15 +204,19 @@ const styles = StyleSheet.create({
     fontFamily: 'SpaceGrotesk_700Bold',
     color: Colors.textPrimary,
   },
-  heroUnit: {
-    ...Typography.bodyLarge,
-    color: Colors.textMuted,
-    marginBottom: Spacing.xs,
-  },
-  heroLabel: {
-    ...Typography.labelCaps,
-    color: Colors.textMuted,
+  heroUnit: { ...Typography.bodyLarge, color: Colors.textMuted, marginBottom: Spacing.xs },
+  heroLabel: { ...Typography.labelCaps, color: Colors.textMuted, marginBottom: Spacing.lg },
+  rangePill: {
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.pill,
     marginBottom: Spacing.xl,
+  },
+  rangePillText: {
+    ...Typography.label,
+    color: Colors.success,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
   },
   sliderCard: {
     width: '100%',
@@ -204,15 +226,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.base,
     ...Shadow.card,
   },
-  sliderTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sliderTitle: {
-    ...Typography.bodyMedium,
-    color: Colors.textPrimary,
-  },
+  sliderTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sliderTitle: { ...Typography.bodyMedium, color: Colors.textPrimary },
   targetBadge: {
     borderWidth: 1.5,
     borderColor: Colors.primary,
@@ -220,26 +235,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm + 2,
     paddingVertical: 3,
   },
-  targetBadgeText: {
-    ...Typography.label,
-    color: Colors.primary,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-  },
-  sliderRange: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  sliderRangeText: {
-    ...Typography.label,
-    color: Colors.textMuted,
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-  },
-  presetRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    width: '100%',
-    marginBottom: Spacing.base,
-  },
+  targetBadgeText: { ...Typography.label, color: Colors.primary, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  sliderRange: { flexDirection: 'row', justifyContent: 'space-between' },
+  sliderRangeText: { ...Typography.label, color: Colors.textMuted, fontFamily: 'PlusJakartaSans_600SemiBold' },
+  presetRow: { flexDirection: 'row', gap: Spacing.sm, width: '100%', marginBottom: Spacing.base },
   presetCard: {
     flex: 1,
     backgroundColor: Colors.card,
@@ -248,10 +247,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Shadow.card,
   },
-  presetCardActive: {
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
+  presetCardActive: { borderWidth: 1.5, borderColor: Colors.primary },
   presetIconCircle: {
     width: 44,
     height: 44,
@@ -261,33 +257,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  presetIconCircleActive: {
-    backgroundColor: Colors.primaryLight,
-  },
-  presetCardLabel: {
-    ...Typography.labelCaps,
-    color: Colors.textMuted,
-    marginBottom: 4,
-  },
-  presetValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  presetCardNumber: {
-    fontSize: 24,
-    fontFamily: 'SpaceGrotesk_700Bold',
-    color: Colors.textPrimary,
-  },
-  presetCardNumberActive: {
-    color: Colors.primary,
-  },
-  presetCardUnit: {
-    ...Typography.bodyMedium,
-    color: Colors.textMuted,
-  },
-  presetCardUnitActive: {
-    color: Colors.primary,
-  },
+  presetIconCircleActive: { backgroundColor: Colors.primaryLight },
+  presetCardLabel: { ...Typography.labelCaps, color: Colors.textMuted, marginBottom: 4 },
+  presetValueRow: { flexDirection: 'row', alignItems: 'baseline' },
+  presetCardNumber: { fontSize: 24, fontFamily: 'SpaceGrotesk_700Bold', color: Colors.textPrimary },
+  presetCardNumberActive: { color: Colors.primary },
+  presetCardUnit: { ...Typography.bodyMedium, color: Colors.textMuted },
+  presetCardUnitActive: { color: Colors.primary },
   infoBanner: {
     width: '100%',
     flexDirection: 'row',
@@ -306,33 +282,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 2,
   },
-  infoBannerIconText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '700',
-  },
   infoBannerContent: { flex: 1 },
-  infoBannerTitle: {
-    ...Typography.bodyMedium,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  infoBannerText: {
-    ...Typography.body,
-    color: Colors.textMuted,
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  bottomCard: {
-    width: '100%',
-    backgroundColor: Colors.secondary,
-    borderRadius: Radii.card,
-    padding: Spacing.xl,
-    alignItems: 'center',
-  },
-  bottomCardText: {
-    ...Typography.bodyMedium,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-  },
+  infoBannerTitle: { ...Typography.bodyMedium, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  infoBannerText: { ...Typography.body, color: Colors.textMuted, fontSize: 13, lineHeight: 20 },
 });

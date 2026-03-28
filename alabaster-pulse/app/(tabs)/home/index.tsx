@@ -101,7 +101,7 @@ export default function HomeScreen() {
   const caloriesLeft = Math.max(0, calorieGoal - totalCalories);
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={load} tintColor={Colors.primary} />}
@@ -231,6 +231,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.xl,
+    paddingBottom: 100,
   },
   header: {
     flexDirection: 'row',

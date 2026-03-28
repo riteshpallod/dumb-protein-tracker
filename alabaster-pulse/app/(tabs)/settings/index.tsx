@@ -98,7 +98,7 @@ export default function SettingsScreen() {
   const avatarUri = settings?.avatar_uri ?? null;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Profile hero */}
@@ -218,7 +218,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.backgroundMuted },
-  scroll: { paddingHorizontal: Spacing.base, paddingTop: Spacing.xl, paddingBottom: 60 },
+  scroll: { paddingHorizontal: Spacing.base, paddingTop: Spacing.xl, paddingBottom: 100 },
   // Hero
   hero: {
     alignItems: 'center',

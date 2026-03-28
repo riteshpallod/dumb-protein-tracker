@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Svg, { Path, Line, Circle, Rect } from 'react-native-svg';
+import Svg, { Path, Line } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
 import { getDb } from '../../../hooks/useDatabase';
@@ -12,7 +12,17 @@ import { getSettings, updateSettings } from '../../../db/queries';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radii, Spacing, Shadow, Typography } from '../../../constants/theme';
 
-/** Scales/balance icon for Maintenance preset. */
+/**
+ * Mifflin-St Jeor BMR × 1.4 (moderate activity) = TDEE.
+ * Rounded to nearest 50 kcal.
+ */
+function calcTDEE(weight: number, height: number, age: number, sex: 'male' | 'female' | null): number {
+  const bmr = sex === 'female'
+    ? 10 * weight + 6.25 * height - 5 * age - 161
+    : 10 * weight + 6.25 * height - 5 * age + 5;
+  return Math.round((bmr * 1.4) / 50) * 50;
+}
+
 function ScalesIcon() {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -25,7 +35,6 @@ function ScalesIcon() {
   );
 }
 
-/** Downtrend chart icon for Lose Weight preset. */
 function TrendDownIcon() {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -35,10 +44,10 @@ function TrendDownIcon() {
   );
 }
 
-/** Edit calorie goal screen. */
+/** Edit calorie goal screen with Mifflin-St Jeor personalised estimates. */
 export default function EditCaloriesScreen() {
   const [value, setValue] = useState(2150);
-  const [original, setOriginal] = useState(2150);
+  const [tdee, setTdee] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -46,13 +55,20 @@ export default function EditCaloriesScreen() {
         const db = getDb();
         const s = await getSettings(db);
         setValue(s.calorie_goal);
-        setOriginal(s.calorie_goal);
+        if (s.weight_kg && s.height_cm && s.age) {
+          setTdee(calcTDEE(s.weight_kg, s.height_cm, s.age, s.sex ?? null));
+        }
       } catch (e) {
         console.error(e);
       }
     }
     load();
   }, []);
+
+  const hasProfile = tdee !== null;
+  const maintenance = tdee ?? 2200;
+  const shred = maintenance - 500;
+  const bulk = maintenance + 350;
 
   async function handleSave() {
     try {
@@ -65,9 +81,16 @@ export default function EditCaloriesScreen() {
     }
   }
 
+  const rangeText = hasProfile
+    ? `Your range: ${shred.toLocaleString()} – ${bulk.toLocaleString()} kcal`
+    : 'Set your profile for a personalised estimate';
+
+  const bannerText = hasProfile
+    ? `Your maintenance is ~${maintenance.toLocaleString()} kcal/day (Mifflin-St Jeor, moderate activity). Shred target: ${shred.toLocaleString()} kcal. Bulk target: ${bulk.toLocaleString()} kcal.`
+    : 'Set your height, weight, age and sex in Profile to get a personalised calorie target.';
+
   return (
-    <SafeAreaView style={styles.root}>
-      {/* Header */}
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.headerCancel}>Cancel</Text>
@@ -79,17 +102,14 @@ export default function EditCaloriesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Hero */}
         <Text style={styles.heroLabel}>CURRENT DAILY TARGET</Text>
         <Text style={styles.heroNumber}>{value.toLocaleString()}</Text>
         <Text style={styles.heroUnit}>kcal</Text>
 
-        {/* Range pill */}
         <View style={styles.rangePill}>
-          <Text style={styles.rangePillText}>Typical range: 1,800 - 2,500 kcal</Text>
+          <Text style={styles.rangePillText}>{rangeText}</Text>
         </View>
 
-        {/* Slider card */}
         <View style={styles.sliderCard}>
           <View style={styles.sliderHeaderRow}>
             <View>
@@ -119,38 +139,38 @@ export default function EditCaloriesScreen() {
           </View>
         </View>
 
-        {/* Preset cards */}
         <View style={styles.presetRow}>
           <TouchableOpacity
-            style={[styles.presetCard, value === 2240 && styles.presetCardActive]}
-            onPress={() => setValue(2240)}
+            style={[styles.presetCard, value === maintenance && styles.presetCardActive]}
+            onPress={() => setValue(maintenance)}
           >
-            <View style={[styles.presetIconCircle, value === 2240 && styles.presetIconCircleActive]}>
+            <View style={[styles.presetIconCircle, value === maintenance && styles.presetIconCircleActive]}>
               <ScalesIcon />
             </View>
             <Text style={styles.presetLabel}>Maintenance</Text>
-            <Text style={[styles.presetValue, value === 2240 && styles.presetValueActive]}>2,240 kcal</Text>
+            <Text style={[styles.presetValue, value === maintenance && styles.presetValueActive]}>
+              {maintenance.toLocaleString()} kcal
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.presetCard, value === 1740 && styles.presetCardActive]}
-            onPress={() => setValue(1740)}
+            style={[styles.presetCard, value === shred && styles.presetCardActive]}
+            onPress={() => setValue(shred)}
           >
-            <View style={[styles.presetIconCircle, value === 1740 && styles.presetIconCircleActive]}>
+            <View style={[styles.presetIconCircle, value === shred && styles.presetIconCircleActive]}>
               <TrendDownIcon />
             </View>
             <Text style={styles.presetLabel}>Lose Weight</Text>
-            <Text style={[styles.presetValue, value === 1740 && styles.presetValueActive]}>1,740 kcal</Text>
+            <Text style={[styles.presetValue, value === shred && styles.presetValueActive]}>
+              {shred.toLocaleString()} kcal
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Info banner */}
         <View style={styles.infoBanner}>
           <View style={styles.infoBannerIconCircle}>
             <Ionicons name="information-circle" size={16} color={Colors.primary} />
           </View>
-          <Text style={styles.infoBannerText}>
-            Setting your goal to <Text style={{ fontFamily: 'PlusJakartaSans_700Bold' }}>{value.toLocaleString()} kcal</Text> is considered a moderate deficit for your current activity level. This supports steady metabolic health.
-          </Text>
+          <Text style={styles.infoBannerText}>{bannerText}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -171,22 +191,14 @@ const styles = StyleSheet.create({
   headerTitle: { ...Typography.title, color: Colors.textPrimary },
   headerSave: { ...Typography.bodyMedium, color: Colors.primary },
   scroll: { paddingHorizontal: Spacing.base, paddingBottom: 40, alignItems: 'center' },
-  heroLabel: {
-    ...Typography.labelCaps,
-    color: Colors.textMuted,
-    marginBottom: Spacing.sm,
-  },
+  heroLabel: { ...Typography.labelCaps, color: Colors.textMuted, marginBottom: Spacing.sm },
   heroNumber: {
     fontSize: 56,
     lineHeight: 64,
     fontFamily: 'SpaceGrotesk_700Bold',
     color: Colors.textPrimary,
   },
-  heroUnit: {
-    ...Typography.bodyLarge,
-    color: Colors.textMuted,
-    marginBottom: Spacing.lg,
-  },
+  heroUnit: { ...Typography.bodyLarge, color: Colors.textMuted, marginBottom: Spacing.lg },
   rangePill: {
     backgroundColor: 'rgba(34,197,94,0.1)',
     paddingHorizontal: Spacing.base,
@@ -212,15 +224,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  sliderTitle: {
-    ...Typography.bodyMedium,
-    color: Colors.textPrimary,
-    marginBottom: 2,
-  },
-  sliderSubtitle: {
-    ...Typography.label,
-    color: Colors.textMuted,
-  },
+  sliderTitle: { ...Typography.bodyMedium, color: Colors.textPrimary, marginBottom: 2 },
+  sliderSubtitle: { ...Typography.label, color: Colors.textMuted },
   flameIcon: {
     width: 40,
     height: 40,
@@ -229,20 +234,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sliderRange: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  sliderRangeText: {
-    ...Typography.label,
-    color: Colors.textMuted,
-  },
-  presetRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    width: '100%',
-    marginBottom: Spacing.base,
-  },
+  sliderRange: { flexDirection: 'row', justifyContent: 'space-between' },
+  sliderRangeText: { ...Typography.label, color: Colors.textMuted },
+  presetRow: { flexDirection: 'row', gap: Spacing.sm, width: '100%', marginBottom: Spacing.base },
   presetCard: {
     flex: 1,
     backgroundColor: Colors.card,
@@ -251,10 +245,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Shadow.card,
   },
-  presetCardActive: {
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
+  presetCardActive: { borderWidth: 1.5, borderColor: Colors.primary },
   presetIconCircle: {
     width: 44,
     height: 44,
@@ -264,21 +255,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  presetIconCircleActive: {
-    backgroundColor: Colors.primaryLight,
-  },
-  presetLabel: {
-    ...Typography.label,
-    color: Colors.textMuted,
-    marginBottom: 4,
-  },
-  presetValue: {
-    ...Typography.bodyMedium,
-    color: Colors.textPrimary,
-  },
-  presetValueActive: {
-    color: Colors.primary,
-  },
+  presetIconCircleActive: { backgroundColor: Colors.primaryLight },
+  presetLabel: { ...Typography.label, color: Colors.textMuted, marginBottom: 4 },
+  presetValue: { ...Typography.bodyMedium, color: Colors.textPrimary, textAlign: 'center' },
+  presetValueActive: { color: Colors.primary },
   infoBanner: {
     width: '100%',
     flexDirection: 'row',
@@ -295,11 +275,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
-  },
-  infoBannerIcon: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '700',
   },
   infoBannerText: {
     flex: 1,

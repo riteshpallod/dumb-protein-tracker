@@ -8,7 +8,9 @@ export const CREATE_TABLES = `
     calorie_goal INTEGER DEFAULT 2150,
     protein_goal INTEGER DEFAULT 165,
     onboarding_complete INTEGER DEFAULT 0,
-    avatar_uri TEXT
+    avatar_uri TEXT,
+    age INTEGER,
+    sex TEXT CHECK(sex IN ('male','female'))
   );
 
   CREATE TABLE IF NOT EXISTS food_items (

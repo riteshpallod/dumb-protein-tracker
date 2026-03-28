@@ -56,6 +56,8 @@ function GoalIcon({ type, active }: { type: GoalType; active: boolean }) {
 /** Edit profile screen — name, height, weight, goal type. */
 export default function EditProfileScreen() {
   const [name, setName] = useState('');
+  const [age, setAge] = useState(25);
+  const [sex, setSex] = useState<'male' | 'female' | null>(null);
   const [height, setHeight] = useState(175);
   const [weight, setWeight] = useState(75.0);
   const [goalType, setGoalType] = useState<GoalType>('maintain');
@@ -67,10 +69,12 @@ export default function EditProfileScreen() {
         const db = getDb();
         const [s, weightEntries] = await Promise.all([getSettings(db), getAllWeightEntries(db)]);
         setName(s.name ?? '');
+        setAge(s.age ?? 25);
+        setSex(s.sex ?? null);
         setHeight(s.height_cm ? Math.round(s.height_cm) : 175);
         // Prefer latest tracked weight over settings weight
         const latestWeight = weightEntries[0]?.weight_kg ?? s.weight_kg ?? 75;
-        setWeight(latestWeight);
+        setWeight(Math.min(120, Math.max(40, latestWeight)));
         setGoalType(s.goal_type);
         setAvatarUri(s.avatar_uri ?? null);
       } catch (e) {
@@ -102,6 +106,8 @@ export default function EditProfileScreen() {
       const db = getDb();
       await updateSettings(db, {
         name: name.trim() || null,
+        age,
+        sex,
         height_cm: height,
         weight_kg: weight,
         goal_type: goalType,
@@ -115,7 +121,7 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {/* Header */}
@@ -154,6 +160,46 @@ export default function EditProfileScreen() {
             placeholderTextColor={Colors.textLight}
           />
 
+          {/* Sex toggle */}
+          <Text style={[styles.fieldLabel, { marginTop: Spacing.base }]}>BIOLOGICAL SEX</Text>
+          <View style={styles.sexToggle}>
+            {(['male', 'female'] as const).map((s) => (
+              <Pressable
+                key={s}
+                style={[styles.sexBtn, sex === s && styles.sexBtnActive]}
+                onPress={() => setSex(s)}
+                android_ripple={null}
+              >
+                <Text style={[styles.sexBtnText, sex === s && styles.sexBtnTextActive]}>
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Age slider */}
+          <View style={[styles.sliderCard, { marginBottom: 0 }]}>
+            <View style={styles.sliderHeader}>
+              <Text style={styles.fieldLabel}>AGE</Text>
+              <Text style={styles.sliderValue}>{age} <Text style={styles.sliderUnit}>yrs</Text></Text>
+            </View>
+            <Slider
+              style={styles.slider}
+              minimumValue={15}
+              maximumValue={80}
+              step={1}
+              value={age}
+              onValueChange={(v) => setAge(Math.round(v))}
+              minimumTrackTintColor={Colors.textMuted}
+              maximumTrackTintColor={Colors.border}
+              thumbTintColor={Colors.textMuted}
+            />
+            <View style={styles.sliderRange}>
+              <Text style={styles.sliderRangeText}>15</Text>
+              <Text style={styles.sliderRangeText}>80</Text>
+            </View>
+          </View>
+
           {/* Height slider */}
           <View style={styles.sliderCard}>
             <View style={styles.sliderHeader}>
@@ -185,8 +231,8 @@ export default function EditProfileScreen() {
             </View>
             <Slider
               style={styles.slider}
-              minimumValue={30}
-              maximumValue={250}
+              minimumValue={40}
+              maximumValue={120}
               step={0.1}
               value={weight}
               onValueChange={(v) => setWeight(+v.toFixed(1))}
@@ -195,8 +241,8 @@ export default function EditProfileScreen() {
               thumbTintColor={Colors.primary}
             />
             <View style={styles.sliderRange}>
-              <Text style={styles.sliderRangeText}>30 kg</Text>
-              <Text style={styles.sliderRangeText}>250 kg</Text>
+              <Text style={styles.sliderRangeText}>40 kg</Text>
+              <Text style={styles.sliderRangeText}>120 kg</Text>
             </View>
           </View>
 
@@ -207,16 +253,13 @@ export default function EditProfileScreen() {
             return (
               <Pressable
                 key={g.key}
-                style={[
-                  styles.goalRow,
-                  { borderColor: active ? g.color : 'transparent', backgroundColor: active ? g.color + '15' : Colors.card },
-                ]}
+                style={styles.goalRow}
                 onPress={() => setGoalType(g.key)}
                 android_ripple={null}
               >
-                <GoalIcon type={g.key} active={active} />
+                <GoalIcon type={g.key} active={false} />
                 <View style={styles.goalTextContainer}>
-                  <Text style={[styles.goalLabel, active && { color: g.color, fontFamily: 'PlusJakartaSans_700Bold' }]}>{g.label}</Text>
+                  <Text style={styles.goalLabel}>{g.label}</Text>
                   <Text style={styles.goalDesc}>{g.desc}</Text>
                 </View>
                 <View style={[styles.radio, active && { borderColor: g.color }]}>
@@ -335,6 +378,29 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     fontSize: 10,
   },
+  sexToggle: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  sexBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: Radii.input,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+  },
+  sexBtnActive: {
+    backgroundColor: Colors.primaryLight,
+  },
+  sexBtnText: {
+    ...Typography.bodyMedium,
+    color: Colors.textMuted,
+  },
+  sexBtnTextActive: {
+    color: Colors.primary,
+    fontFamily: 'PlusJakartaSans_700Bold',
+  },
   sectionLabel: {
     ...Typography.labelCaps,
     color: Colors.textMuted,
@@ -351,7 +417,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: Radii.card,
-    borderWidth: 1.5,
+    backgroundColor: Colors.card,
     padding: Spacing.base,
     marginBottom: Spacing.sm,
     gap: Spacing.md,

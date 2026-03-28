@@ -48,7 +48,7 @@ export default function InventoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Food Inventory</Text>
